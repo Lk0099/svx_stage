@@ -1,0 +1,51 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    system: 'smartvision-x'
+
+scrape_configs:
+
+  # Triton Inference Server — built-in metrics endpoint
+  - job_name: triton
+    static_configs:
+      - targets: ['triton:8002']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Face Service — custom application metrics
+  - job_name: face-service
+    static_configs:
+      - targets: ['face-service:8003']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Inference Worker — stream processing metrics
+  - job_name: inference-worker
+    static_configs:
+      - targets: ['inference-worker:9090']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # PostgreSQL exporter
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+
+  # Redis exporter
+  - job_name: redis
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+
+  # Kafka lag exporter
+  - job_name: kafka-lag
+    static_configs:
+      - targets: ['kafka-lag-exporter:8080']
+    scrape_interval: 15s
+
+  # Prometheus itself
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

@@ -1,0 +1,319 @@
+version: "3.9"
+
+# =============================================================================
+# SmartVision-X — Docker Compose  (DGX-Compatible Build)
+# =============================================================================
+# DGX ALREADY HAS: prometheus, grafana, cadvisor, dcgm-exporter, node-exporter
+# DO NOT redeploy those — they will conflict.
+# This compose only deploys SmartVision-X services + 3 new metric exporters.
+# Run scripts/patch_prometheus.sh to wire existing prometheus to our services.
+# =============================================================================
+
+networks:
+  svx-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+
+services:
+
+  # ── Zookeeper ─────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: svx_zookeeper
+    restart: unless-stopped
+    networks: [svx-net]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME:   2000
+    healthcheck:
+      test:     ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+
+  # ── Kafka ──────────────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: svx_kafka
+    restart: unless-stopped
+    networks: [svx-net]
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID:                        1
+      KAFKA_ZOOKEEPER_CONNECT:                zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS:             PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE:        "true"
+      KAFKA_LOG_RETENTION_MS:                 60000
+      KAFKA_LOG_SEGMENT_MS:                   30000
+    healthcheck:
+      test:     ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout:  10s
+      retries:  5
+
+  # ── PostgreSQL + pgvector ──────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: svx_postgres
+    restart: unless-stopped
+    networks: [svx-net]
+    environment:
+      POSTGRES_USER:     admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB:       smartvision
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U admin -d smartvision"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: svx_redis
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+        --appendonly yes
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+    healthcheck:
+      test:     ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout:  3s
+      retries:  5
+
+  # ── Triton Inference Server ────────────────────────────────────────────────
+  triton:
+    image: nvcr.io/nvidia/tritonserver:23.10-py3
+    container_name: svx_triton
+    restart: unless-stopped
+    networks: [svx-net]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver:       nvidia
+              count:        1
+              capabilities: [gpu]
+    shm_size: "4g"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+    volumes:
+      - ../models:/models
+    command: >
+      bash -c "pip install --quiet -r /models/requirements_triton.txt &&
+               tritonserver
+                 --model-repository=/models
+                 --log-verbose=0
+                 --strict-model-config=false
+                 --grpc-infer-allocation-pool-size=16"
+    healthcheck:
+      test:         ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval:     15s
+      timeout:      10s
+      retries:      10
+      start_period: 40s
+
+  # ── Face Service ───────────────────────────────────────────────────────────
+  face-service:
+    build:
+      context:    ../services/face-service
+      dockerfile: Dockerfile
+    container_name: svx_face_service
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "8003:8003"
+    environment:
+      DATABASE_URL:    postgresql://admin:admin@postgres:5432/smartvision
+      KAFKA_BROKER:    kafka:9092
+      MATCH_THRESHOLD: "0.45"
+    depends_on:
+      triton:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test:         ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval:     15s
+      timeout:      5s
+      retries:      5
+      start_period: 20s
+
+  # ── Camera Ingest Worker — cam-01 ──────────────────────────────────────────
+  ingest-cam-01:
+    build:
+      context:    ../services/ingest-service
+      dockerfile: Dockerfile
+    container_name: svx_ingest_cam01
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "9091:9090"
+    environment:
+      CAMERA_ID:    "cam-01"
+      RTSP_URL:     "${CAM_01_RTSP_URL:-rtsp://192.168.1.101:554/stream1}"
+      FRAME_SAMPLE: "3"
+      JPEG_QUALITY: "85"
+      KAFKA_BROKER: "kafka:9092"
+      METRICS_PORT: "9090"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ── Inference Worker ───────────────────────────────────────────────────────
+  inference-worker:
+    build:
+      context:    ../services/inference-worker
+      dockerfile: Dockerfile
+    container_name: svx_inference_worker
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "9094:9090"
+    environment:
+      TRITON_URL:         "triton:8001"
+      KAFKA_BROKER:       "kafka:9092"
+      REDIS_HOST:         "redis"
+      FACE_SERVICE_URL:   "http://face-service:8003"
+      WORKER_ID:          "worker-01"
+      MATCH_THRESHOLD:    "0.45"
+      RECONFIRM_INTERVAL: "30"
+      TRACK_TTL_SECONDS:  "30"
+      METRICS_PORT:       "9090"
+    depends_on:
+      triton:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      face-service:
+        condition: service_healthy
+
+  # ── Metric Exporters (scraped by existing DGX Prometheus) ─────────────────
+  # Existing prometheus on this DGX already scrapes dcgm-exporter (GPU),
+  # cadvisor (containers), and node-exporter (host).
+  # These 3 exporters add: PostgreSQL, Redis, and Kafka coverage.
+  # Run scripts/patch_prometheus.sh to register them.
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: svx_postgres_exporter
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://admin:admin@postgres:5432/smartvision?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    container_name: svx_redis_exporter
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    depends_on:
+      - redis
+
+  
+  
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: svx_kafka_exporter
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "9308:9308"
+    command:
+      - "--kafka.server=kafka:9092"
+      - "--web.listen-address=:9308"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ── Web Dashboard ──────────────────────────────────────────────────────────
+  gui-service:
+    build:
+      context:    ../services/gui-service
+      dockerfile: Dockerfile
+    container_name: svx_gui
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "3000:80"
+    depends_on:
+      - face-service
+
+  # ── Alert, Tracking, Vehicle Services ─────────────────────────────────────
+  alert-service:
+    build:
+      context:    ../services/alert-service
+      dockerfile: Dockerfile
+    container_name: svx_alert_service
+    restart: unless-stopped
+    networks: [svx-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  tracking-service:
+    build:
+      context:    ../services/tracking-service
+      dockerfile: Dockerfile
+    container_name: svx_tracking_service
+    restart: unless-stopped
+    networks: [svx-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  vehicle-service:
+    build:
+      context:    ../services/vehicle-service
+      dockerfile: Dockerfile
+    container_name: svx_vehicle_service
+    restart: unless-stopped
+    networks: [svx-net]
+    ports:
+      - "8010:8000"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

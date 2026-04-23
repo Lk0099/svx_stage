@@ -1,0 +1,276 @@
+{
+  "title": "SmartVision-X — Operations Dashboard",
+  "uid": "svx-main",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["smartvision-x"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Registered Identities",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "svx_registered_identities_total",
+        "legendFormat": "Identities"
+      }],
+      "options": { "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Recognition Matches / sec",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "rate(svx_recognitions_total{result=\"matched\"}[1m])",
+        "legendFormat": "Matches/s"
+      }],
+      "options": { "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Unknown Face Rate",
+      "type": "gauge",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "rate(svx_recognitions_total{result=\"unknown\"}[5m]) / clamp_min(rate(svx_recognitions_total[5m]), 0.001)",
+        "legendFormat": "Unknown Rate"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "minVizValue": 0,
+        "maxVizValue": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red",    "value": 0.8 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "GPU Utilization",
+      "type": "gauge",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "nv_gpu_utilization",
+        "legendFormat": "GPU {{gpu_uuid}}"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red",    "value": 90 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Triton Inference Queue Depth",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "nv_inference_pending_request_count{model=\"face_recognition\"}",
+          "legendFormat": "ArcFace queue"
+        },
+        {
+          "expr": "nv_inference_pending_request_count{model=\"face_detection\"}",
+          "legendFormat": "SCRFD queue"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red",    "value": 200 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Recognition Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(svx_recognition_latency_seconds_bucket[2m]))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(svx_recognition_latency_seconds_bucket[2m]))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(svx_recognition_latency_seconds_bucket[2m]))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red",    "value": 0.2 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "pgvector Search Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(svx_db_search_latency_seconds_bucket[2m]))",
+          "legendFormat": "p95 search"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(svx_db_search_latency_seconds_bucket[2m]))",
+          "legendFormat": "p99 search"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red",    "value": 0.05 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Kafka Consumer Lag — Inference Workers",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "sum(kafka_consumer_group_lag{group=\"inference-workers\"}) by (topic)",
+        "legendFormat": "{{topic}}"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "red",    "value": 10000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Frames Processed / sec per Camera",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "rate(svx_frames_processed_total[1m])",
+        "legendFormat": "{{camera_id}}"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "GPU Memory Used",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 6 },
+      "targets": [{
+        "expr": "nv_gpu_memory_used_bytes",
+        "legendFormat": "GPU {{gpu_uuid}}"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Triton Model Throughput",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(nv_inference_count{model=\"face_detection\"}[1m])",
+          "legendFormat": "SCRFD detections/s"
+        },
+        {
+          "expr": "rate(nv_inference_count{model=\"face_recognition\"}[1m])",
+          "legendFormat": "ArcFace embeddings/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    }
+  ]
+}

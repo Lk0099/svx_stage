@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SmartVision-X — Command Interface</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ── Reset & Base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base:       #080c10;
+  --bg-surface:    #0d1117;
+  --bg-elevated:   #131920;
+  --bg-card:       #161d26;
+  --bg-hover:      #1c2530;
+
+  --border-subtle: #1e2d3d;
+  --border-normal: #253444;
+  --border-strong: #2e4058;
+
+  --accent-primary:  #00d4ff;
+  --accent-glow:     rgba(0, 212, 255, 0.15);
+  --accent-glow-sm:  rgba(0, 212, 255, 0.08);
+  --accent-success:  #00e676;
+  --accent-warning:  #ffb300;
+  --accent-danger:   #ff3d5a;
+  --accent-neutral:  #546e7a;
+
+  --text-primary:   #e8edf2;
+  --text-secondary: #8fa3b3;
+  --text-muted:     #4a6174;
+  --text-accent:    #00d4ff;
+
+  --font-body:  'Sora', sans-serif;
+  --font-mono:  'JetBrains Mono', monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-card: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 20px rgba(0,212,255,0.12);
+
+  --transition: 0.18s ease;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+/* ── Scanline overlay ─────────────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  grid-template-rows: 56px 1fr;
+  min-height: 100vh;
+}
+
+/* ── Topbar ───────────────────────────────────────────────────────────────── */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-icon {
+  width: 28px;
+  height: 28px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.brand-icon svg { width: 100%; height: 100%; }
+
+.brand-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.brand-text span {
+  color: var(--accent-primary);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.status-pill:hover { border-color: var(--border-normal); }
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-neutral);
+  flex-shrink: 0;
+}
+
+.status-dot.online  { background: var(--accent-success); box-shadow: 0 0 6px var(--accent-success); animation: pulse 2s infinite; }
+.status-dot.offline { background: var(--accent-danger); }
+.status-dot.checking { background: var(--accent-warning); animation: pulse 1s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.topbar-clock {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  min-width: 160px;
+  text-align: right;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+}
+
+.sidebar-section-label {
+  padding: 12px 20px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: var(--transition);
+  border-left: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  user-select: none;
+  position: relative;
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: linear-gradient(90deg, var(--accent-glow), transparent);
+  border-left-color: var(--accent-primary);
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+
+.nav-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.nav-item.active .nav-icon { opacity: 1; }
+
+.nav-badge {
+  margin-left: auto;
+  padding: 1px 7px;
+  background: var(--accent-glow);
+  border: 1px solid rgba(0,212,255,0.2);
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+
+/* ── Main content ─────────────────────────────────────────────────────────── */
+.main {
+  padding: 28px 32px;
+  overflow-y: auto;
+  max-height: calc(100vh - 56px);
+}
+
+/* ── Page header ──────────────────────────────────────────────────────────── */
+.page-header {
+  margin-bottom: 28px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-title-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--accent-primary);
+}
+
+.page-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Tab panels ───────────────────────────────────────────────────────────── */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  transition: var(--transition);
+}
+
+.card:hover { border-color: var(--border-normal); }
+
+.card-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+}
+
+.card-title::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 12px;
+  background: var(--accent-primary);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+/* ── Form elements ────────────────────────────────────────────────────────── */
+.form-group { margin-bottom: 18px; }
+
+.form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-normal);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  transition: var(--transition);
+  outline: none;
+}
+
+.form-input::placeholder { color: var(--text-muted); }
+
+.form-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-glow-sm);
+}
+
+/* ── Upload zone ──────────────────────────────────────────────────────────── */
+.upload-zone {
+  border: 1.5px dashed var(--border-normal);
+  border-radius: var(--radius-lg);
+  padding: 36px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, var(--accent-glow-sm) 0%, transparent 70%);
+  opacity: 0;
+  transition: var(--transition);
+}
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+  border-color: var(--accent-primary);
+  background: var(--accent-glow-sm);
+}
+
+.upload-zone:hover::before,
+.upload-zone.drag-over::before { opacity: 1; }
+
+.upload-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 14px;
+  color: var(--text-muted);
+  transition: var(--transition);
+}
+
+.upload-zone:hover .upload-icon { color: var(--accent-primary); }
+
+.upload-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.upload-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Preview ──────────────────────────────────────────────────────────────── */
+.preview-container {
+  margin-top: 16px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  display: none;
+  position: relative;
+}
+
+.preview-container img {
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  display: block;
+}
+
+.preview-container canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+
+.preview-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 10px;
+  background: rgba(0,0,0,0.75);
+  border: 1px solid var(--border-normal);
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: var(--transition);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: #000;
+}
+
+.btn-primary:not(:disabled):hover {
+  background: #33dcff;
+  box-shadow: 0 4px 16px rgba(0,212,255,0.3);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--accent-danger);
+  color: var(--accent-danger);
+}
+
+.btn-danger:not(:disabled):hover {
+  background: rgba(255,61,90,0.1);
+}
+
+.btn-ghost {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-normal);
+  color: var(--text-secondary);
+}
+
+.btn-ghost:not(:disabled):hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.btn-full { width: 100%; }
+
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0,0,0,0.2);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+
+.btn.loading .spinner { display: block; }
+.btn.loading .btn-text { opacity: 0.7; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Result box ───────────────────────────────────────────────────────────── */
+.result-box {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  display: none;
+  font-size: 13px;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.result-box.success {
+  background: rgba(0,230,118,0.06);
+  border-color: rgba(0,230,118,0.25);
+  color: var(--accent-success);
+}
+
+.result-box.error {
+  background: rgba(255,61,90,0.06);
+  border-color: rgba(255,61,90,0.25);
+  color: var(--accent-danger);
+}
+
+.result-box.info {
+  background: rgba(0,212,255,0.05);
+  border-color: rgba(0,212,255,0.2);
+  color: var(--text-secondary);
+}
+
+.result-box.show { display: block; }
+
+/* ── Stat cards ───────────────────────────────────────────────────────────── */
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 60px; height: 60px;
+  background: radial-gradient(circle at top right, var(--accent-glow), transparent 70%);
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Face result cards ────────────────────────────────────────────────────── */
+.face-results { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+
+.face-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  animation: fadeIn 0.3s ease both;
+}
+
+.face-card.matched { border-color: rgba(0,230,118,0.2); }
+.face-card.unknown { border-color: rgba(255,61,90,0.15); }
+
+.face-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.face-avatar.matched { background: rgba(0,230,118,0.12); color: var(--accent-success); }
+.face-avatar.unknown { background: rgba(255,61,90,0.1); color: var(--accent-danger); }
+
+.face-info { flex: 1; }
+
+.face-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.face-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.confidence-bar-wrap {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.confidence-score {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.confidence-score.matched { color: var(--accent-success); }
+.confidence-score.unknown { color: var(--accent-danger); }
+
+.confidence-bar {
+  width: 80px;
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.confidence-fill.matched { background: var(--accent-success); }
+.confidence-fill.unknown { background: var(--accent-danger); }
+
+/* ── Identity table ───────────────────────────────────────────────────────── */
+.identity-search {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.identity-search .form-input { margin: 0; }
+
+.identity-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.identity-list { display: flex; flex-direction: column; gap: 6px; }
+
+.identity-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+  animation: fadeIn 0.2s ease both;
+}
+
+.identity-row:hover {
+  border-color: var(--border-normal);
+  background: var(--bg-hover);
+}
+
+.identity-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-glow);
+  border: 1px solid rgba(0,212,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.identity-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.identity-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.identity-actions { display: flex; gap: 8px; }
+
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-muted);
+}
+
+.empty-state-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  opacity: 0.3;
+}
+
+.empty-state-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.empty-state-sub {
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+/* ── Health / Status ──────────────────────────────────────────────────────── */
+.health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.health-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+}
+
+.health-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.health-indicator.ready   { background: var(--accent-success); box-shadow: 0 0 8px var(--accent-success); }
+.health-indicator.error   { background: var(--accent-danger); }
+.health-indicator.pending { background: var(--accent-warning); animation: pulse 1s infinite; }
+
+.health-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.health-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Log console ──────────────────────────────────────────────────────────── */
+.console-box {
+  background: #050810;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  height: 220px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  margin-top: 20px;
+}
+
+.log-line { display: flex; gap: 12px; }
+
+.log-time { color: var(--text-muted); flex-shrink: 0; }
+.log-level-info    { color: var(--accent-primary); }
+.log-level-success { color: var(--accent-success); }
+.log-level-error   { color: var(--accent-danger); }
+.log-level-warn    { color: var(--accent-warning); }
+.log-msg { color: var(--text-secondary); }
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-normal);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  font-size: 13px;
+  color: var(--text-primary);
+  max-width: 320px;
+  animation: slideIn 0.25s ease;
+}
+
+.toast.success { border-left: 3px solid var(--accent-success); }
+.toast.error   { border-left: 3px solid var(--accent-danger); }
+.toast.info    { border-left: 3px solid var(--accent-primary); }
+
+@keyframes slideIn {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+/* ── Divider ──────────────────────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 20px 0;
+}
+
+/* ── Responsive tweaks ────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .main { padding: 20px 16px; }
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .health-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── Topbar ─────────────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="10" height="10" rx="2" stroke="#00d4ff" stroke-width="1.5"/>
+          <rect x="17" y="1" width="10" height="10" rx="2" stroke="#00d4ff" stroke-width="1.5" opacity="0.5"/>
+          <rect x="1" y="17" width="10" height="10" rx="2" stroke="#00d4ff" stroke-width="1.5" opacity="0.5"/>
+          <circle cx="22" cy="22" r="5" stroke="#00d4ff" stroke-width="1.5"/>
+          <circle cx="22" cy="22" r="2" fill="#00d4ff"/>
+          <line x1="6" y1="6" x2="14" y2="14" stroke="#00d4ff" stroke-width="1" stroke-dasharray="2 2" opacity="0.4"/>
+        </svg>
+      </div>
+      <span class="brand-text">Smart<span>Vision</span>-X</span>
+    </div>
+    <div class="topbar-right">
+      <div class="status-pill" id="topStatusPill" onclick="switchTab('system')">
+        <div class="status-dot checking" id="topStatusDot"></div>
+        <span id="topStatusText">CHECKING</span>
+      </div>
+      <div class="topbar-clock" id="topbarClock">—</div>
+    </div>
+  </header>
+
+  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-section-label">Biometric</div>
+    <div class="nav-item active" onclick="switchTab('register')" id="nav-register">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
+        <line x1="12" y1="2" x2="12" y2="6"/><line x1="10" y1="4" x2="14" y2="4"/>
+      </svg>
+      Register Identity
+    </div>
+    <div class="nav-item" onclick="switchTab('recognize')" id="nav-recognize">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="6" cy="6" r="4"/><path d="m9 9 4 4"/>
+        <path d="M4 6h4M6 4v4" opacity="0.5"/>
+      </svg>
+      Recognize Face
+    </div>
+    <div class="nav-item" onclick="switchTab('identities')" id="nav-identities">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+        <circle cx="5.5" cy="8" r="2"/><path d="M9 6.5h3.5M9 8h3.5M9 9.5h2"/>
+      </svg>
+      Identity Registry
+      <span class="nav-badge" id="navBadge">0</span>
+    </div>
+
+    <div class="sidebar-section-label" style="margin-top:8px">System</div>
+    <div class="nav-item" onclick="switchTab('system')" id="nav-system">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="1" y="1" width="14" height="14" rx="2"/>
+        <path d="M5 8h6M8 5v6" opacity="0.5"/>
+        <circle cx="8" cy="8" r="2.5"/>
+      </svg>
+      System Status
+    </div>
+
+    <div style="margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border-subtle);">
+      <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.06em;">
+        FACE-SERVICE<br/>
+        <span style="color: var(--accent-primary);" id="sidebarEndpoint">:8003</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ══ REGISTER ══════════════════════════════════════════════════════ -->
+    <div class="tab-panel active" id="panel-register">
+      <div class="page-header">
+        <h1 class="page-title">
+          <svg class="page-title-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="8" cy="6" r="3.5"/><path d="M2 17c0-3.9 2.7-7 6-7"/>
+            <line x1="15" y1="10" x2="15" y2="17"/><line x1="11.5" y1="13.5" x2="18.5" y2="13.5"/>
+          </svg>
+          Register Identity
+        </h1>
+        <p class="page-subtitle">Enroll a new face into the biometric registry</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Subject Information</div>
+          <div class="form-group">
+            <label class="form-label" for="regName">Identity Label</label>
+            <input type="text" class="form-input" id="regName" placeholder="Enter full name or identifier" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Face Image</label>
+            <div class="upload-zone" id="regUploadZone">
+              <input type="file" id="regFile" accept="image/jpeg,image/png,image/webp" />
+              <div class="upload-icon">
+                <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="4" y="8" width="32" height="26" rx="3"/>
+                  <circle cx="20" cy="21" r="7"/>
+                  <circle cx="20" cy="21" r="3"/>
+                  <line x1="30" y1="8" x2="30" y2="2"/><line x1="27" y1="5" x2="33" y2="5"/>
+                </svg>
+              </div>
+              <div class="upload-title">Drop image here or click to browse</div>
+              <div class="upload-hint">JPEG · PNG · WebP · Max 10 MB</div>
+            </div>
+          </div>
+
+          <div class="preview-container" id="regPreview">
+            <img id="regPreviewImg" alt="Preview" />
+            <span class="preview-badge" id="regPreviewBadge">—</span>
+          </div>
+
+          <div class="divider"></div>
+
+          <button class="btn btn-primary btn-full" id="regBtn" onclick="doRegister()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M7 1v12M1 7h12"/>
+            </svg>
+            <span class="btn-text">Register Identity</span>
+            <div class="spinner"></div>
+          </button>
+
+          <div class="result-box" id="regResult"></div>
+        </div>
+
+        <div>
+          <div class="card" style="margin-bottom:20px">
+            <div class="card-title">Registration Tips</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;gap:12px;align-items:flex-start">
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-glow);border:1px solid rgba(0,212,255,0.2);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--accent-primary);flex-shrink:0">1</div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:2px">Single face per image</div>
+                  <div style="font-size:12px;color:var(--text-muted)">Only the primary face detection will be used for enrollment</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;align-items:flex-start">
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-glow);border:1px solid rgba(0,212,255,0.2);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--accent-primary);flex-shrink:0">2</div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:2px">Frontal orientation</div>
+                  <div style="font-size:12px;color:var(--text-muted)">SCRFD performs best on near-frontal poses (±30°)</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;align-items:flex-start">
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-glow);border:1px solid rgba(0,212,255,0.2);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--accent-primary);flex-shrink:0">3</div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:2px">Adequate resolution</div>
+                  <div style="font-size:12px;color:var(--text-muted)">Face region should be at least 80×80 pixels for reliable embedding</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Registry Stats</div>
+            <div style="display:flex;gap:20px">
+              <div>
+                <div class="stat-label">Enrolled</div>
+                <div class="stat-value" id="regStatCount" style="font-size:28px">—</div>
+              </div>
+              <div>
+                <div class="stat-label">Last Added</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-secondary);font-family:var(--font-mono);margin-top:4px" id="regStatLast">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ RECOGNIZE ═════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="panel-recognize">
+      <div class="page-header">
+        <h1 class="page-title">
+          <svg class="page-title-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="8" cy="8" r="5.5"/>
+            <path d="m13 13 4 4"/><path d="M6 8h4M8 6v4" opacity="0.5"/>
+          </svg>
+          Face Recognition
+        </h1>
+        <p class="page-subtitle">Match a face image against the registered identity store</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Query Image</div>
+
+          <div class="upload-zone" id="recUploadZone">
+            <input type="file" id="recFile" accept="image/jpeg,image/png,image/webp" />
+            <div class="upload-icon">
+              <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="20" cy="20" r="10"/>
+                <circle cx="20" cy="20" r="5"/>
+                <line x1="4" y1="20" x2="10" y2="20" opacity="0.4"/>
+                <line x1="30" y1="20" x2="36" y2="20" opacity="0.4"/>
+                <line x1="20" y1="4" x2="20" y2="10" opacity="0.4"/>
+                <line x1="20" y1="30" x2="20" y2="36" opacity="0.4"/>
+              </svg>
+            </div>
+            <div class="upload-title">Upload image for recognition</div>
+            <div class="upload-hint">All detected faces will be identified</div>
+          </div>
+
+          <div class="preview-container" id="recPreview">
+            <img id="recPreviewImg" alt="Preview" />
+            <canvas id="recCanvas"></canvas>
+            <span class="preview-badge" id="recPreviewBadge">—</span>
+          </div>
+
+          <div class="divider"></div>
+
+          <button class="btn btn-primary btn-full" id="recBtn" onclick="doRecognize()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="6" cy="6" r="4"/><path d="m9 9 3 3"/>
+            </svg>
+            <span class="btn-text">Run Recognition</span>
+            <div class="spinner"></div>
+          </button>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-title">Recognition Results</div>
+            <div id="recResults">
+              <div class="empty-state">
+                <svg class="empty-state-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.2">
+                  <circle cx="24" cy="24" r="10"/>
+                  <circle cx="24" cy="24" r="4"/>
+                  <line x1="4" y1="24" x2="14" y2="24" opacity="0.4"/>
+                  <line x1="34" y1="24" x2="44" y2="24" opacity="0.4"/>
+                  <line x1="24" y1="4" x2="24" y2="14" opacity="0.4"/>
+                  <line x1="24" y1="34" x2="24" y2="44" opacity="0.4"/>
+                </svg>
+                <div class="empty-state-title">No query submitted</div>
+                <div class="empty-state-sub">Upload an image and run recognition</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:20px">
+            <div class="card-title">Match Threshold</div>
+            <div style="display:flex;align-items:center;gap:14px">
+              <input type="range" id="thresholdSlider" min="0.3" max="0.9" step="0.05" value="0.45"
+                style="flex:1;accent-color:var(--accent-primary)" oninput="updateThreshold()" />
+              <span id="thresholdLabel" style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--accent-primary);min-width:36px">0.45</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:8px;font-family:var(--font-mono)">
+              Lower → more permissive · Higher → stricter matching
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ IDENTITIES ═════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="panel-identities">
+      <div class="page-header">
+        <h1 class="page-title">
+          <svg class="page-title-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="2" y="4" width="16" height="12" rx="2"/>
+            <circle cx="7" cy="10" r="2.5"/><path d="M11 8h5M11 10h5M11 12h3"/>
+          </svg>
+          Identity Registry
+        </h1>
+        <p class="page-subtitle">Manage enrolled identities in the biometric store</p>
+      </div>
+
+      <div class="grid-3" style="margin-bottom:20px">
+        <div class="stat-card">
+          <div class="stat-label">Total Enrolled</div>
+          <div class="stat-value" id="idStatTotal">—</div>
+          <div class="stat-sub">registered identities</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Embedding Dim</div>
+          <div class="stat-value">512</div>
+          <div class="stat-sub">float32 dimensions</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Match Method</div>
+          <div class="stat-value" style="font-size:18px;margin-top:6px">Cosine</div>
+          <div class="stat-sub">L2-normalised vectors</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="identity-search">
+          <input type="text" class="form-input" id="idSearch" placeholder="Search by name…" oninput="filterIdentities()" style="flex:1" />
+          <span class="identity-count" id="idCountLabel">0 identities</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadIdentities()">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M10 6a4 4 0 1 1-4-4"/>
+              <polyline points="10 2 10 6 6 6"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+        <div class="identity-list" id="identityList">
+          <div class="empty-state">
+            <svg class="empty-state-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.2">
+              <rect x="8" y="12" width="32" height="24" rx="3"/>
+              <circle cx="18" cy="24" r="5"/>
+              <path d="M26 20h10M26 24h10M26 28h7"/>
+            </svg>
+            <div class="empty-state-title">No identities registered</div>
+            <div class="empty-state-sub">Use the Register tab to enroll faces</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SYSTEM STATUS ═════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="panel-system">
+      <div class="page-header">
+        <h1 class="page-title">
+          <svg class="page-title-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="2" y="2" width="16" height="16" rx="3"/>
+            <circle cx="10" cy="10" r="3"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3"/>
+          </svg>
+          System Status
+        </h1>
+        <p class="page-subtitle">Live health and infrastructure status</p>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:24px">
+        <button class="btn btn-primary btn-sm" onclick="doHealthCheck()">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 6a4 4 0 1 1-4-4"/>
+            <polyline points="10 2 10 6 6 6"/>
+          </svg>
+          <span class="btn-text">Refresh Status</span>
+          <div class="spinner"></div>
+        </button>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);align-self:center" id="lastCheckedLabel">—</span>
+      </div>
+
+      <div class="health-grid" id="healthGrid">
+        <div class="health-item">
+          <div class="health-indicator pending" id="hi-face-service"></div>
+          <div>
+            <div class="health-label">Face Service</div>
+            <div class="health-status" id="hs-face-service">Checking…</div>
+          </div>
+        </div>
+        <div class="health-item">
+          <div class="health-indicator pending" id="hi-triton"></div>
+          <div>
+            <div class="health-label">Triton Inference Server</div>
+            <div class="health-status" id="hs-triton">Checking…</div>
+          </div>
+        </div>
+        <div class="health-item">
+          <div class="health-indicator pending" id="hi-face-detection"></div>
+          <div>
+            <div class="health-label">face_detection model</div>
+            <div class="health-status" id="hs-face-detection">Checking…</div>
+          </div>
+        </div>
+        <div class="health-item">
+          <div class="health-indicator pending" id="hi-face-recognition"></div>
+          <div>
+            <div class="health-label">face_recognition model</div>
+            <div class="health-status" id="hs-face-recognition">Checking…</div>
+          </div>
+        </div>
+        <div class="health-item">
+          <div class="health-indicator pending" id="hi-identities"></div>
+          <div>
+            <div class="health-label">Identity Store</div>
+            <div class="health-status" id="hs-identities">Checking…</div>
+          </div>
+        </div>
+        <div class="health-item">
+          <div class="health-indicator pending" id="hi-overall"></div>
+          <div>
+            <div class="health-label">Overall Status</div>
+            <div class="health-status" id="hs-overall">Checking…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="console-box" id="systemConsole">
+        <div class="log-line">
+          <span class="log-time">—</span>
+          <span class="log-level-info">[INFO]</span>
+          <span class="log-msg">SmartVision-X command interface initialised</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Toasts ──────────────────────────────────────────────────────────────── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const API = window.location.hostname === 'localhost'
+  ? 'http://localhost:8003'
+  : `http://${window.location.hostname}:8003`;
+
+document.getElementById('sidebarEndpoint').textContent = `:8003 (${window.location.hostname})`;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let allIdentities = [];
+let matchThreshold = 0.45;
+let regSelectedFile = null;
+let recSelectedFile = null;
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  document.getElementById('topbarClock').textContent =
+    `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}  ` +
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  document.getElementById(`nav-${name}`).classList.add('active');
+
+  if (name === 'identities') loadIdentities();
+  if (name === 'system')     doHealthCheck();
+  if (name === 'register')   loadRegisterStats();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info', duration = 3500) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  const icons = {
+    success: '✓',
+    error:   '✕',
+    info:    'ℹ',
+  };
+  t.innerHTML = `<span style="font-weight:700;font-family:var(--font-mono)">${icons[type]||'ℹ'}</span><span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(20px)'; t.style.transition = '0.3s ease'; setTimeout(() => t.remove(), 300); }, duration);
+}
+
+// ── Console log ───────────────────────────────────────────────────────────────
+function consoleLog(msg, level = 'info') {
+  const box = document.getElementById('systemConsole');
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const levelClass = { info: 'log-level-info', success: 'log-level-success', error: 'log-level-error', warn: 'log-level-warn' }[level] || 'log-level-info';
+  const levelLabel = { info: '[INFO]', success: '[OK]', error: '[ERR]', warn: '[WARN]' }[level] || '[INFO]';
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${time}</span><span class="${levelClass}">${levelLabel}</span><span class="log-msg">${msg}</span>`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── Button loading state ──────────────────────────────────────────────────────
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.classList.toggle('loading', loading);
+}
+
+// ── Result box ────────────────────────────────────────────────────────────────
+function showResult(boxId, msg, type) {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  box.textContent = msg;
+  box.className = `result-box ${type} show`;
+}
+
+// ── File preview helper ───────────────────────────────────────────────────────
+function setupFileInput(inputId, previewId, imgId, badgeId, onFile) {
+  const input     = document.getElementById(inputId);
+  const container = document.getElementById(previewId);
+  const img       = document.getElementById(imgId);
+  const badge     = document.getElementById(badgeId);
+  const zone      = input.closest('.upload-zone');
+
+  function loadFile(file) {
+    if (!file) return;
+    onFile(file);
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.src = e.target.result;
+      container.style.display = 'block';
+      badge.textContent = `${file.name} · ${(file.size/1024).toFixed(0)} KB`;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  input.addEventListener('change', () => loadFile(input.files[0]));
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    loadFile(e.dataTransfer.files[0]);
+  });
+}
+
+// ── Setup file inputs ─────────────────────────────────────────────────────────
+setupFileInput('regFile', 'regPreview', 'regPreviewImg', 'regPreviewBadge', f => { regSelectedFile = f; });
+setupFileInput('recFile', 'recPreview', 'recPreviewImg', 'recPreviewBadge', f => { recSelectedFile = f; });
+
+// ── Threshold ─────────────────────────────────────────────────────────────────
+function updateThreshold() {
+  matchThreshold = parseFloat(document.getElementById('thresholdSlider').value);
+  document.getElementById('thresholdLabel').textContent = matchThreshold.toFixed(2);
+}
+
+// ── REGISTER ──────────────────────────────────────────────────────────────────
+async function doRegister() {
+  const name = document.getElementById('regName').value.trim();
+  const file = regSelectedFile;
+
+  if (!name) { showResult('regResult', '⚠ Identity label is required.', 'error'); return; }
+  if (!file)  { showResult('regResult', '⚠ Please select an image file.', 'error'); return; }
+
+  setLoading('regBtn', true);
+  document.getElementById('regResult').className = 'result-box';
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res  = await fetch(`${API}/register?name=${encodeURIComponent(name)}`, { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showResult('regResult', `✕ ${data.detail || 'Registration failed'}`, 'error');
+      showToast(data.detail || 'Registration failed', 'error');
+      consoleLog(`Register failed for "${name}": ${data.detail}`, 'error');
+    } else {
+      showResult('regResult', `✓ "${data.name}" registered successfully · ${data.total_registered} total identities`, 'success');
+      showToast(`"${data.name}" enrolled`, 'success');
+      consoleLog(`Registered identity: "${data.name}" (faces detected: ${data.faces_detected})`, 'success');
+      document.getElementById('regName').value = '';
+      document.getElementById('regPreview').style.display = 'none';
+      regSelectedFile = null;
+      document.getElementById('regFile').value = '';
+      loadRegisterStats();
+      updateNavBadge();
+    }
+  } catch (err) {
+    showResult('regResult', '✕ Cannot reach face-service. Check that the service is running.', 'error');
+    showToast('Service unreachable', 'error');
+    consoleLog(`Network error during registration: ${err.message}`, 'error');
+  } finally {
+    setLoading('regBtn', false);
+  }
+}
+
+// ── RECOGNIZE ─────────────────────────────────────────────────────────────────
+async function doRecognize() {
+  const file = recSelectedFile;
+  if (!file) { showToast('Please select an image first', 'error'); return; }
+
+  setLoading('recBtn', true);
+  document.getElementById('recResults').innerHTML = `
+    <div style="text-align:center;padding:32px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px">
+      Running inference…
+    </div>`;
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res  = await fetch(`${API}/recognize`, { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (!res.ok) {
+      document.getElementById('recResults').innerHTML = `<div class="result-box error show">${data.detail || 'Recognition failed'}</div>`;
+      showToast(data.detail || 'Recognition failed', 'error');
+      consoleLog(`Recognition failed: ${data.detail}`, 'error');
+      return;
+    }
+
+    renderRecognitionResults(data);
+    consoleLog(`Recognition complete: ${data.total_detected} face(s) detected`, 'success');
+    drawBoundingBoxes(data.faces);
+
+  } catch (err) {
+    document.getElementById('recResults').innerHTML = `<div class="result-box error show">Cannot reach face-service. Check that the service is running.</div>`;
+    showToast('Service unreachable', 'error');
+    consoleLog(`Network error during recognition: ${err.message}`, 'error');
+  } finally {
+    setLoading('recBtn', false);
+  }
+}
+
+function renderRecognitionResults(data) {
+  const container = document.getElementById('recResults');
+
+  if (!data.faces || data.faces.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <svg class="empty-state-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.2">
+          <circle cx="24" cy="18" r="8"/><path d="M8 44c0-8.8 7.2-16 16-16s16 7.2 16 16"/>
+          <line x1="16" y1="8" x2="32" y2="32" stroke-dasharray="3 2" opacity="0.4"/>
+        </svg>
+        <div class="empty-state-title">No faces detected</div>
+        <div class="empty-state-sub">${data.message || 'Try an image with a clear, visible face'}</div>
+      </div>`;
+    return;
+  }
+
+  const html = data.faces.map((face, i) => {
+    const isMatch = face.matched;
+    const pct     = Math.round(face.confidence * 100);
+    const initial = face.person === 'unknown' ? '?' : face.person[0].toUpperCase();
+    return `
+      <div class="face-card ${isMatch ? 'matched' : 'unknown'}" style="animation-delay:${i * 0.07}s">
+        <div class="face-avatar ${isMatch ? 'matched' : 'unknown'}">${initial}</div>
+        <div class="face-info">
+          <div class="face-name">${face.person === 'unknown' ? 'Unknown Subject' : face.person}</div>
+          <div class="face-meta">Box: [${face.box.x1}, ${face.box.y1}] → [${face.box.x2}, ${face.box.y2}]</div>
+        </div>
+        <div class="confidence-bar-wrap">
+          <div class="confidence-score ${isMatch ? 'matched' : 'unknown'}">${pct}%</div>
+          <div class="confidence-bar">
+            <div class="confidence-fill ${isMatch ? 'matched' : 'unknown'}" style="width:${pct}%"></div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="margin-bottom:12px;font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">
+      ${data.total_detected} face(s) processed · threshold ${matchThreshold.toFixed(2)}
+    </div>
+    <div class="face-results">${html}</div>`;
+
+  showToast(`${data.faces.filter(f=>f.matched).length} match(es) found`, 'success');
+}
+
+function drawBoundingBoxes(faces) {
+  const img    = document.getElementById('recPreviewImg');
+  const canvas = document.getElementById('recCanvas');
+  if (!img || !canvas || !faces || !faces.length) return;
+
+  canvas.width  = img.naturalWidth  || img.clientWidth;
+  canvas.height = img.naturalHeight || img.clientHeight;
+  const scaleX = img.clientWidth  / (img.naturalWidth  || img.clientWidth);
+  const scaleY = img.clientHeight / (img.naturalHeight || img.clientHeight);
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  faces.forEach(face => {
+    const { x1, y1, x2, y2 } = face.box;
+    const color = face.matched ? '#00e676' : '#ff3d5a';
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 2;
+    ctx.shadowBlur  = 6;
+    ctx.shadowColor = color;
+    ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
+
+    ctx.fillStyle = color;
+    ctx.shadowBlur = 0;
+    ctx.font       = 'bold 11px JetBrains Mono, monospace';
+    const label    = `${face.person} ${Math.round(face.confidence*100)}%`;
+    const tw       = ctx.measureText(label).width;
+    ctx.fillRect(x1 * scaleX, (y1 * scaleY) - 18, tw + 8, 18);
+    ctx.fillStyle = '#000';
+    ctx.fillText(label, (x1 * scaleX) + 4, (y1 * scaleY) - 4);
+  });
+}
+
+// ── IDENTITIES ────────────────────────────────────────────────────────────────
+async function loadIdentities() {
+  try {
+    const res  = await fetch(`${API}/identities`);
+    const data = await res.json();
+    allIdentities = data.identities || [];
+    renderIdentities(allIdentities);
+    document.getElementById('idStatTotal').textContent = allIdentities.length;
+    document.getElementById('idCountLabel').textContent = `${allIdentities.length} identit${allIdentities.length !== 1 ? 'ies' : 'y'}`;
+    updateNavBadge();
+  } catch (err) {
+    consoleLog(`Failed to load identities: ${err.message}`, 'error');
+  }
+}
+
+function renderIdentities(list) {
+  const container = document.getElementById('identityList');
+  if (!list.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <svg class="empty-state-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="8" y="12" width="32" height="24" rx="3"/>
+          <circle cx="18" cy="24" r="5"/>
+          <path d="M26 20h10M26 24h10M26 28h7"/>
+        </svg>
+        <div class="empty-state-title">No identities registered</div>
+        <div class="empty-state-sub">Use the Register tab to enroll faces</div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = list.map((name, i) => `
+    <div class="identity-row" style="animation-delay:${i * 0.04}s">
+      <div class="identity-avatar">${name[0].toUpperCase()}</div>
+      <div class="identity-name">${name}</div>
+      <div class="identity-meta">512-dim embedding</div>
+      <div class="identity-actions">
+        <button class="btn btn-danger btn-sm" onclick="deleteIdentity('${name.replace(/'/g, "\\'")}')">Remove</button>
+      </div>
+    </div>`).join('');
+}
+
+function filterIdentities() {
+  const q = document.getElementById('idSearch').value.toLowerCase();
+  renderIdentities(allIdentities.filter(n => n.toLowerCase().includes(q)));
+}
+
+async function deleteIdentity(name) {
+  if (!confirm(`Remove identity "${name}" from the registry?\nThis action cannot be undone.`)) return;
+  try {
+    const res  = await fetch(`${API}/identities/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(`"${name}" removed`, 'success');
+      consoleLog(`Deleted identity: "${name}" · ${data.remaining} remaining`, 'success');
+      loadIdentities();
+    } else {
+      showToast(data.detail || 'Delete failed', 'error');
+    }
+  } catch (err) {
+    showToast('Service unreachable', 'error');
+  }
+}
+
+// ── HEALTH CHECK ──────────────────────────────────────────────────────────────
+async function doHealthCheck() {
+  const btn = document.querySelector('#panel-system .btn-primary');
+  if (btn) { btn.disabled = true; btn.classList.add('loading'); }
+
+  setHealthIndicator('face-service', 'pending', 'Checking…');
+  setHealthIndicator('triton',       'pending', 'Checking…');
+  setHealthIndicator('face-detection','pending','Checking…');
+  setHealthIndicator('face-recognition','pending','Checking…');
+  setHealthIndicator('identities',   'pending', 'Checking…');
+  setHealthIndicator('overall',      'pending', 'Checking…');
+
+  consoleLog('Requesting health status from face-service…', 'info');
+
+  try {
+    const res  = await fetch(`${API}/health`);
+    const data = await res.json();
+
+    setHealthIndicator('face-service',
+      res.ok ? 'ready' : 'error',
+      res.ok ? 'HTTP 200 OK' : `HTTP ${res.status}`);
+
+    setHealthIndicator('triton',
+      data.triton === 'ready' ? 'ready' : 'error',
+      data.triton || '—');
+
+    setHealthIndicator('face-detection',
+      data.models?.face_detection === 'ready' ? 'ready' : 'error',
+      data.models?.face_detection || '—');
+
+    setHealthIndicator('face-recognition',
+      data.models?.face_recognition === 'ready' ? 'ready' : 'error',
+      data.models?.face_recognition || '—');
+
+    const regCount = data.registered_identities ?? '—';
+    setHealthIndicator('identities',
+      'ready',
+      `${regCount} identities registered`);
+
+    const allOk = data.status === 'healthy';
+    setHealthIndicator('overall',
+      allOk ? 'ready' : 'error',
+      allOk ? 'All systems operational' : 'One or more systems degraded');
+
+    updateTopbarStatus(allOk);
+
+    const label = `Last checked: ${new Date().toLocaleTimeString()}`;
+    document.getElementById('lastCheckedLabel').textContent = label;
+    consoleLog(`Health check complete — status: ${data.status}`, allOk ? 'success' : 'warn');
+
+    if (data.registered_identities !== undefined) {
+      document.getElementById('navBadge').textContent = data.registered_identities;
+    }
+  } catch (err) {
+    ['face-service','triton','face-detection','face-recognition','identities','overall']
+      .forEach(k => setHealthIndicator(k, 'error', 'Unreachable'));
+    updateTopbarStatus(false);
+    consoleLog(`Health check failed: ${err.message}`, 'error');
+    showToast('Cannot reach face-service', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
+  }
+}
+
+function setHealthIndicator(key, state, statusText) {
+  const dot    = document.getElementById(`hi-${key}`);
+  const status = document.getElementById(`hs-${key}`);
+  if (dot)    { dot.className = `health-indicator ${state}`; }
+  if (status) { status.textContent = statusText; }
+}
+
+function updateTopbarStatus(online) {
+  const dot  = document.getElementById('topStatusDot');
+  const text = document.getElementById('topStatusText');
+  if (online) {
+    dot.className  = 'status-dot online';
+    text.textContent = 'ONLINE';
+  } else {
+    dot.className  = 'status-dot offline';
+    text.textContent = 'DEGRADED';
+  }
+}
+
+// ── Register stats ────────────────────────────────────────────────────────────
+async function loadRegisterStats() {
+  try {
+    const res  = await fetch(`${API}/identities`);
+    const data = await res.json();
+    document.getElementById('regStatCount').textContent = data.total ?? 0;
+    const last = (data.identities || []).slice(-1)[0];
+    document.getElementById('regStatLast').textContent = last ?? 'None';
+  } catch (_) {}
+}
+
+async function updateNavBadge() {
+  try {
+    const res  = await fetch(`${API}/identities`);
+    const data = await res.json();
+    document.getElementById('navBadge').textContent = data.total ?? 0;
+  } catch (_) {}
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+(async function init() {
+  consoleLog('Initialising SmartVision-X command interface…', 'info');
+  await doHealthCheck();
+  await loadRegisterStats();
+  await updateNavBadge();
+  consoleLog('Interface ready', 'success');
+})();
+</script>
+</body>
+</html>
